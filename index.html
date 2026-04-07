@@ -1390,34 +1390,31 @@ function doWebSearch() {
   btn.innerHTML = '<div class="spinner"></div> Websuche läuft…';
 
   const query = currentMissing.query;
-  const cbName = '_off_' + Date.now();
-  const timeout = setTimeout(() => {
-    delete window[cbName];
-    btn.disabled = false;
-    btn.innerHTML = '✦ Im Web suchen & ergänzen';
-    showMsg('Keine Ergebnisse gefunden. Anderen Begriff versuchen.', 'red');
-    document.getElementById('nf-panel').style.display = 'none';
-  }, 8000);
+  const url = 'https://corsproxy.io/?' + encodeURIComponent('https://search.openfoodfacts.org/search?q=' + encodeURIComponent(query) + '&page_size=10');
 
-  window[cbName] = function(data) {
-    clearTimeout(timeout);
-    delete window[cbName];
-    btn.disabled = false;
-    btn.innerHTML = '✦ Im Web suchen & ergänzen';
+  const reset = () => { btn.disabled = false; btn.innerHTML = '✦ Im Web suchen & ergänzen'; };
 
-    const products = (data.products || []).filter(p => {
+  fetch(url).then(r => r.json()).then(data => {
+    reset();
+    const hits = (data.hits || []).filter(p => {
       const n = p.nutriments;
       return n && (n['energy-kcal_100g'] || n['energy-kcal']);
     });
 
-    if (!products.length) {
-      showMsg(`„${query}" nicht gefunden. Anderen Begriff versuchen.`, 'red');
+    if (!hits.length) {
+      showMsg('„' + query + '" nicht gefunden. Anderen Begriff versuchen.', 'red');
       document.getElementById('nf-panel').style.display = 'none';
       return;
     }
 
-    products.sort((a, b) => (a.product_name||'').length - (b.product_name||'').length);
-    const p = products[0];
+    const getName = p => {
+      if (typeof p.product_name === 'string') return p.product_name;
+      if (p.product_name && typeof p.product_name === 'object') return p.product_name.de || p.product_name.main || p.product_name.en || Object.values(p.product_name)[0] || '';
+      return '';
+    };
+
+    hits.sort((a, b) => (getName(a)||'').length - (getName(b)||'').length);
+    const p = hits[0];
     const n = p.nutriments;
     const entry = {
       names: [query.toLowerCase()],
@@ -1429,20 +1426,18 @@ function doWebSearch() {
       kategorie: currentMissing.kat,
       custom: true,
       displayName: query.charAt(0).toUpperCase() + query.slice(1),
-      source: p.product_name_de || p.product_name || query,
+      source: getName(p) || query,
     };
 
     customDB.push(entry);
     updateDbTag();
 
-    // Add to custom chips
     const chips = document.getElementById('chips-custom');
     const wrap = document.getElementById('chips-custom-wrap');
     const label = entry.displayName;
     chips.innerHTML += `<button class="chip custom" onclick="quickSearch('${query.replace(/'/g,"\\'")}',${currentMissing.amount})">${label}</button>`;
     wrap.style.display = 'block';
 
-    // Show entry code
     const code = `{ names: ["${entry.names[0]}"], kcal: ${entry.kcal}, protein: ${entry.protein}, carbs: ${entry.carbs}, fat: ${entry.fat}${entry.liquid?', liquid: true':''} }`;
     const box = document.getElementById('entry-box');
     box.innerHTML = `<span class="lbl">✦ DB +1 (${DB.length + customDB.length} Einträge) &nbsp;</span><code>${code}</code><br><span style="color:#333;font-size:10px">Quelle: ${entry.source}</span>`;
@@ -1453,21 +1448,11 @@ function doWebSearch() {
     renderResult(entry, query, currentMissing.amount);
     addHistory(query, currentMissing.amount);
     currentMissing = null;
-  };
-
-  const script = document.createElement('script');
-  script.src = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=10&callback=${cbName}`;
-  script.onerror = () => {
-    clearTimeout(timeout);
-    delete window[cbName];
-    btn.disabled = false;
-    btn.innerHTML = '✦ Im Web suchen & ergänzen';
-    showMsg('Netzwerkfehler. Bitte erneut versuchen.', 'red');
-  };
-  document.head.appendChild(script);
-  setTimeout(() => script.remove(), 9000);
+  }).catch(err => {
+    reset();
+    showMsg('Netzwerkfehler: ' + err.message, 'red');
+  });
 }
-
 // Enter key
 document.getElementById('food-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') doSearch();

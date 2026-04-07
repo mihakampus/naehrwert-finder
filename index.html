@@ -151,10 +151,6 @@
 
   <!-- Quick picks -->
   <div style="margin-bottom:28px">
-    <div class="ql">Lebensmittel</div>
-    <div class="chips" id="chips-food"></div>
-    <div class="ql">Getränke</div>
-    <div class="chips" id="chips-drink"></div>
     <div id="chips-custom-wrap" style="display:none">
       <div class="ql" style="margin-top:14px"><span style="color:#f0c860">✦</span> Neu hinzugefügt</div>
       <div class="chips" id="chips-custom"></div>
@@ -1233,8 +1229,12 @@ const DB = [
   { names: ["zichorienkaffee"], kcal: 45, protein: 1, carbs: 10, fat: 0.2, liquid: true },
 ];
 
-let customDB = [];
-let history = [];
+function loadCustomDB(){try{return JSON.parse(localStorage.getItem('nwf_customDB')||'[]')}catch(e){return []}}
+function saveCustomDB(){try{localStorage.setItem('nwf_customDB',JSON.stringify(customDB))}catch(e){}}
+function loadHistory(){try{return JSON.parse(localStorage.getItem('nwf_history')||'[]')}catch(e){return []}}
+function saveHistory(){try{localStorage.setItem('nwf_history',JSON.stringify(history))}catch(e){}}
+let customDB = loadCustomDB();
+let history = loadHistory();
 const QUICK_FOOD = ["Hühnerbrust","Lachs","Burrata","Gouda","Edamame","Haferflocken","Avocado","Mandeln"];
 const QUICK_DRINK = ["Wasser","Kaffee","Radler","Bier","Cola","Orangensaft","Rotwein","Smoothie"];
 
@@ -1364,6 +1364,7 @@ function renderResult(found, f, a) {
 function addHistory(f, a) {
   const key = f + '||' + a;
   history = [{key, food:f, amount:a}, ...history.filter(h => h.key !== key)].slice(0, 8);
+  saveHistory();
   renderHistory();
 }
 
@@ -1391,7 +1392,6 @@ function doWebSearch() {
 
   const query = currentMissing.query;
   const url = 'https://corsproxy.io/?' + encodeURIComponent('https://search.openfoodfacts.org/search?q=' + encodeURIComponent(query) + '&page_size=10');
-
   const reset = () => { btn.disabled = false; btn.innerHTML = '✦ Im Web suchen & ergänzen'; };
 
   fetch(url).then(r => r.json()).then(data => {
@@ -1430,6 +1430,7 @@ function doWebSearch() {
     };
 
     customDB.push(entry);
+    saveCustomDB();
     updateDbTag();
 
     const chips = document.getElementById('chips-custom');
@@ -1458,15 +1459,21 @@ document.getElementById('food-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') doSearch();
 });
 
-// Init quick chips
-QUICK_FOOD.forEach(q => {
-  document.getElementById('chips-food').innerHTML +=
-    `<button class="chip" onclick="quickSearch('${q}',document.getElementById('amount').value||100)">${q}</button>`;
-});
-QUICK_DRINK.forEach(q => {
-  document.getElementById('chips-drink').innerHTML +=
-    `<button class="chip drink" onclick="quickSearch('${q}',document.getElementById('amount').value||100)">${q}</button>`;
-});
+
+// Restore persisted custom entries on load
+(function restoreCustom(){
+  if (!customDB.length) return;
+  const chips = document.getElementById('chips-custom');
+  const wrap = document.getElementById('chips-custom-wrap');
+  customDB.forEach(entry => {
+    const q = entry.names[0];
+    const label = entry.displayName || q;
+    chips.innerHTML += `<button class="chip custom" onclick="quickSearch('${q.replace(/'/g,"\\'")}',document.getElementById('amount').value||100)">${label}</button>`;
+  });
+  wrap.style.display = 'block';
+  updateDbTag();
+})();
+renderHistory();
 </script>
 </body>
 </html>

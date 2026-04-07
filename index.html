@@ -1278,7 +1278,7 @@ function showMsg(text, type) {
 function pct(v, m) { return Math.min(Math.round((v/m)*100), 100); }
 
 function doSearch(overrideFood, overrideAmount) {
-  const f = (overrideFood ?? document.getElementById('food-input').value)).trim();
+  const f = (overrideFood ?? document.getElementById('food-input').value).trim();
   const a = (overrideAmount ?? parseInt(document.getElementById('amount').value)) || 100;
   if (!f) { showMsg('Bitte ein Lebensmittel eingeben.', 'red'); return; }
 
